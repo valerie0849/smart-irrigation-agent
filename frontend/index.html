@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧灌溉方案生成系统</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="/lib/react.min.js"></script>
+<script src="/lib/react-dom.min.js"></script>
+<script src="/lib/axios.min.js"></script>
+<script src="/lib/marked.min.js"></script>
+<style>
+:root {
+  --bg:#fff;--bg2:#f8f9fa;--border:#e8eaed;--text:#1a1a1a;--text2:#5f6368;--text3:#9aa0a6;
+  --accent:#1a73e8;--accent-hover:#1557b0;--green:#0d904f;--green-bg:#e6f4ea;--red:#d93025;--red-bg:#fce8e6;
+  --radius:12px;--radius-sm:8px;--shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.1);
+  --diff-add:#e6f4ea;--diff-add-text:#0d904f;--diff-remove:#fce8e6;--diff-remove-text:#d93025;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+#root{height:100%;display:flex;flex-direction:column}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--bg);z-index:10;flex-shrink:0}
+header h1{font-size:16px;font-weight:600;letter-spacing:-0.3px;display:flex;align-items:center;gap:8px}
+header h1 span{font-weight:400;color:var(--text2);font-size:13px}
+.badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.badge-on{background:var(--green-bg);color:var(--green)}
+.badge-off{background:var(--red-bg);color:var(--red)}
+.badge-api{background:#e8f0fe;color:var(--accent)}
+
+.layout{display:flex;flex:1;overflow:hidden}
+
+.sidebar{width:240px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg2);flex-shrink:0}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.new-chat{width:100%;padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;cursor:pointer;font-size:13px;color:var(--text);transition:all .15s;text-align:left;display:flex;align-items:center;gap:8px}
+.new-chat:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,115,232,.1)}
+.session-list{flex:1;overflow-y:auto;padding:8px}
+.session-item{padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;color:var(--text2);margin-bottom:2px;transition:all .15s;display:flex;align-items:center;gap:8px;word-break:break-all}
+.session-item:hover{background:#e8eaed}
+.session-item.active{background:#e8f0fe;color:var(--accent);font-weight:500}
+.session-item svg{flex-shrink:0;opacity:.4}
+.del-session{margin-left:auto;opacity:0;transition:opacity .15s;background:none;border:none;cursor:pointer;color:var(--text3);padding:2px;border-radius:4px}
+.session-item:hover .del-session{opacity:1}
+.del-session:hover{color:var(--red);background:var(--red-bg)}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
+.main-content{flex:1;display:flex;overflow:hidden;min-width:0;min-height:0}
+.chat-area{flex:1;overflow-y:auto;padding:24px;scroll-behavior:smooth;min-height:0}
+.chat-area.with-editor{flex:0 0 50%;border-right:1px solid var(--border)}
+.editor-panel{flex:0 0 50%;display:flex;flex-direction:column;overflow:hidden}
+.editor-panel .editor-header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;background:var(--bg)}
+.editor-panel .plan-editor{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0}
+.editor-panel .plan-editor textarea{border-radius:0;border:none;border-bottom:1px solid var(--border);flex:1;min-height:0}
+.editor-panel .editor-toolbar{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;background:var(--bg)}
+
+.diff-line{padding:2px 8px;font-size:12px;line-height:1.5}
+.diff-remove-line{background:var(--diff-remove);color:var(--diff-remove-text)}
+.diff-add-line{background:var(--diff-add);color:var(--diff-add-text)}
+.diff-same-line{color:var(--text2)}
+
+.msg{max-width:800px;margin:0 auto 20px;animation:fadeIn .3s ease}
+.msg-user{display:flex;justify-content:flex-end}
+.msg-user .bubble{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 4px var(--radius);padding:12px 16px;font-size:14px;max-width:70%;line-height:1.6}
+.msg-assistant .bubble{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius) var(--radius) var(--radius) 4px;padding:16px 20px;font-size:14px;line-height:1.8}
+.msg-assistant .bubble h1,.msg-assistant .bubble h2,.msg-assistant .bubble h3{margin:16px 0 8px;color:var(--text);font-weight:600}
+.msg-assistant .bubble h1{font-size:20px;border-bottom:1px solid var(--border);padding-bottom:8px}
+.msg-assistant .bubble h2{font-size:16px}
+.msg-assistant .bubble h3{font-size:14px}
+.msg-assistant .bubble table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+.msg-assistant .bubble th,.msg-assistant .bubble td{border:1px solid var(--border);padding:8px 12px;text-align:left}
+.msg-assistant .bubble th{background:var(--bg2);font-weight:500;color:var(--text2)}
+.msg-assistant .bubble blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:8px 0;background:var(--bg2);border-radius:0 var(--radius-sm) var(--radius-sm) 0;color:var(--text2)}
+.msg-assistant .bubble code{background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:12px}
+.msg-assistant .bubble pre{background:#1a1a1a;color:#e8eaed;padding:16px;border-radius:var(--radius-sm);overflow-x:auto;font-size:12px;line-height:1.5}
+.msg-assistant .bubble ul,.msg-assistant .bubble ol{padding-left:24px;margin:8px 0}
+.msg-assistant .bubble li{margin:4px 0}
+.msg-assistant .bubble hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+.msg-assistant .bubble strong{font-weight:600}
+.msg-assistant .bubble a{color:var(--accent)}
+
+.progress-container{margin:16px 0}
+.progress-steps{list-style:none;padding:0;margin:0}
+.progress-steps li{padding:8px 12px;margin:4px 0;font-size:13px;color:var(--text2);background:var(--bg2);border-radius:var(--radius-sm);border-left:3px solid var(--border);transition:all .3s}
+.progress-steps li.active{border-left-color:var(--accent);color:var(--text);background:#e8f0fe;animation:pulse 1.5s infinite}
+.progress-steps li.done{border-left-color:var(--green);color:var(--text)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+
+.plan-editor{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin:8px 0}
+.plan-editor h2{font-size:16px;font-weight:600;margin-bottom:6px;color:var(--accent)}
+.plan-editor .plan-meta{font-size:13px;color:var(--text2);margin-bottom:16px}
+.plan-editor textarea{width:100%;min-height:300px;max-height:400px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:14px;font-family:inherit;line-height:1.8;resize:vertical;outline:none;overflow-y:auto}
+.plan-editor textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,115,232,.1)}
+.plan-editor .editor-toolbar{display:flex;gap:8px;margin-top:12px}
+.plan-editor .editor-toolbar button{padding:6px 16px;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px}
+.plan-editor .btn-save{background:var(--accent);color:#fff;border:none}
+.plan-editor .btn-save:hover{background:var(--accent-hover)}
+.plan-editor .btn-undo{background:var(--bg);color:var(--text2);border:1px solid var(--border)}
+.plan-editor .btn-undo:hover{border-color:var(--accent);color:var(--accent)}
+.plan-editor .btn-export{background:var(--bg);color:var(--text2);border:1px solid var(--border);position:relative}
+.plan-editor .btn-export:hover{border-color:var(--accent);color:var(--accent)}
+.plan-editor .export-drop{position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:130px;z-index:20;display:none}
+.plan-editor .export-drop.open{display:block}
+.plan-editor .export-drop button{display:block;width:100%;text-align:left;border:none;border-radius:0;padding:8px 14px;font-size:13px;color:var(--text2);background:var(--bg);cursor:pointer}
+.plan-editor .export-drop button:first-child{border-radius:var(--radius-sm) var(--radius-sm) 0 0}
+.plan-editor .export-drop button:last-child{border-radius:0 0 var(--radius-sm) var(--radius-sm)}
+.plan-editor .export-drop button:hover{background:var(--bg2)}
+
+.quality-report{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin:16px 0}
+.quality-report h3{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--accent);display:flex;align-items:center;gap:8px}
+.quality-score{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.quality-score .score-circle{width:80px;height:80px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:24px;font-weight:700;flex-shrink:0}
+.quality-score .score-circle.excellent{background:#e6f4ea;color:#0d904f;border:2px solid #0d904f}
+.quality-score .score-circle.good{background:#e8f0fe;color:#1a73e8;border:2px solid #1a73e8}
+.quality-score .score-circle.pass{background:#fff3cd;color:#d97706;border:2px solid #d97706}
+.quality-score .score-circle.improve{background:#fce8e6;color:#d93025;border:2px solid #d93025}
+.quality-score .score-circle .grade{font-size:14px;font-weight:500;margin-top:2px}
+.quality-score .score-details{flex:1}
+.quality-score .score-details .detail-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+.quality-score .score-details .detail-row:last-child{border-bottom:none}
+.quality-score .score-details .detail-label{color:var(--text2);font-size:13px}
+.quality-score .score-details .detail-value{font-weight:600}
+.quality-section{margin-top:16px}
+.quality-section h4{font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px}
+.quality-section ul{margin:0;padding-left:20px}
+.quality-section li{font-size:13px;color:var(--text2);margin:4px 0;line-height:1.6}
+.quality-section li::marker{color:var(--accent)}
+
+.data-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin:8px 0}.data-card h3{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}.data-card.weather-card h3{color:#1a73e8}.data-card.soil-card h3{color:#0d904f}.data-card table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}.data-card th,.data-card td{border:1px solid var(--border);padding:8px 12px;text-align:left}.data-card th{background:var(--bg2);font-weight:500;color:var(--text2)}.data-card .data-source{font-size:12px;color:var(--text3);margin-top:12px;padding-top:8px;border-top:1px solid var(--border)}
+
+.diff-viewer{display:flex;gap:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.diff-panel{flex:1;min-width:0}
+.diff-panel-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.diff-panel-header span{font-size:12px;font-weight:500;color:var(--text2)}
+.diff-panel-header .diff-toggle{font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline}
+.diff-panel-content{padding:12px;max-height:400px;overflow-y:auto}
+.diff-line{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-all;padding:2px 0}
+.diff-line.add{background:var(--diff-add);color:var(--diff-add-text)}
+.diff-line.remove{background:var(--diff-remove);color:var(--diff-remove-text)}
+.diff-line.same{color:var(--text3)}
+.diff-line.add::before{content:'+ '}
+.diff-line.remove::before{content:'- '}
+.diff-line.same::before{content:'  '}
+
+.knowledge-refs-toggle{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;font-size:13px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s}
+.knowledge-refs-toggle:hover{border-color:var(--accent);color:var(--accent);background:#f0f6ff}
+.knowledge-refs-toggle .badge{background:var(--accent);color:#fff;font-size:11px;padding:1px 6px;border-radius:10px;font-weight:500}
+.knowledge-refs{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:12px;overflow:hidden;max-height:400px;overflow-y:auto}
+.knowledge-refs h4{font-size:14px;font-weight:600;color:var(--text);padding:12px 16px;margin:0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.knowledge-refs h4::before{content:'📚'}
+.knowledge-refs-list{list-style:none;padding:8px;margin:0}
+.knowledge-refs-list li{padding:8px 12px;margin:4px 0;border-radius:var(--radius-sm);background:var(--bg);border-left:3px solid var(--accent);font-size:13px;line-height:1.6}
+.knowledge-refs-list li .ref-source{font-weight:600;color:var(--accent);margin-bottom:4px}
+.knowledge-refs-list li .ref-content{color:var(--text2);max-height:60px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.knowledge-refs-list li .ref-tag{display:inline-block;padding:1px 6px;border-radius:10px;font-size:11px;margin-left:8px;font-weight:500}
+.knowledge-refs-list li .ref-tag.template{background:#e8f0fe;color:#1a73e8}
+.knowledge-refs-list li .ref-tag.standard{background:#fce8e6;color:#d93025}
+.knowledge-refs-list li .ref-tag.domain_knowledge{background:#e6f4ea;color:#0d904f}
+
+.local-undo-btn{background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:2px 6px;border-radius:4px;opacity:0;transition:opacity .15s}
+.local-undo-btn:hover{background:var(--green-bg)}
+.diff-line:hover .local-undo-btn{opacity:1}
+
+.greeting{text-align:center;padding:40px 20px}
+.greeting h2{font-size:22px;font-weight:600;margin-bottom:12px;letter-spacing:-0.4px}
+.greeting p{color:var(--text2);font-size:14px;max-width:400px;margin:0 auto 24px;line-height:1.8}
+.greeting .hints{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:600px;margin:0 auto}
+.greeting .hint{padding:8px 14px;border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--text2);cursor:pointer;background:var(--bg);transition:all .15s}
+.greeting .hint:hover{border-color:var(--accent);color:var(--accent);background:#f0f6ff}
+
+.typing{display:flex;align-items:center;gap:4px;padding:8px 0}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--text3);animation:typing 1.4s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.3}30%{transform:translateY(-6px);opacity:1}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.input-area{border-top:1px solid var(--border);padding:16px 24px;background:var(--bg);flex-shrink:0}
+.input-wrap{max-width:800px;margin:0 auto;display:flex;gap:8px}
+.input-wrap textarea{flex:1;border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.5;min-height:44px;max-height:120px;transition:border-color .15s}
+.input-wrap textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,115,232,.1)}
+.input-wrap button.send-btn{background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:0 20px;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s;white-space:nowrap}
+.input-wrap button.send-btn:hover{background:var(--accent-hover)}
+.input-wrap button.send-btn:disabled{opacity:.5;cursor:not-allowed}
+
+.editor-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;display:flex;align-items:center;justify-content:center}
+.editor-modal{background:var(--bg);border-radius:var(--radius);padding:24px;width:90%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.editor-overlay .plan-editor{flex:1;display:flex;flex-direction:column;min-height:0}
+.editor-overlay .plan-editor textarea{min-height:200px;flex:1}
+
+.plan-bubble{max-height:600px;overflow-y:auto;position:relative}
+.plan-bubble .plan-content{max-height:400px;overflow-y:auto}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .msg-user .bubble{max-width:85%}
+}
+
+.chat-area::-webkit-scrollbar{width:6px}
+.chat-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.chat-area::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+  if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+    document.getElementById('root').innerHTML = '<div style="padding:40px;text-align:center;font-family:sans-serif;"><h2>资源加载失败</h2><p>请检查网络连接后刷新页面</p><button onclick="location.reload()" style="padding:10px 20px;margin-top:16px;cursor:pointer;">刷新</button></div>';
+    return;
+  }
+
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useRef = React.useRef;
+var useCallback = React.useCallback;
+var AXIOS = axios.create({baseURL:''});
+
+var DEFAULT_GREETING = '你好！我是智慧灌溉助手 v3。\n\n你可以：\n\n1. 描述项目，如"河南中牟县2000亩小麦，预算200万"，我来生成方案\n\n2. 查询气象/土壤数据\n\n3. 查询知识库\n\n4. 对已有方案提出修改';
+
+function App() {
+  var _a = useState([{role:'assistant',content:DEFAULT_GREETING}]), msgs = _a[0], setMsgs = _a[1];
+  var _b = useState(''), input = _b[0], setInput = _b[1];
+  var _c = useState(false), loading = _c[0], setLoading = _c[1];
+  var _d = useState(''), sid = _d[0], setSid = _d[1];
+  var _e = useState([]), sessions = _e[0], setSessions = _e[1];
+  var _f = useState(null), planData = _f[0], setPlanData = _f[1];
+  var _g = useState(''), editedPlan = _g[0], setEditedPlan = _g[1];
+  var _h = useState(''), originalPlan = _h[0], setOriginalPlan = _h[1];
+  var _i = useState(false), exportOpen = _i[0], setExportOpen = _i[1];
+  var _j = useState(''), llmMode = _j[0], setLlmMode = _j[1];
+  var _k = useState(null), qualityData = _k[0], setQualityData = _k[1];
+  var _kr = useState([]), knowledgeRefs = _kr[0], setKnowledgeRefs = _kr[1];
+  var _krt = useState(false), knowledgeRefsOpen = _krt[0], setKnowledgeRefsOpen = _krt[1];
+  var _ko = useState(false), showEditor = _ko[0], setShowEditor = _ko[1];
+  var _edit = useState([]), editDiff = _edit[0], setEditDiff = _edit[1];
+  var _l = useState([]), progressSteps = _l[0], setProgressSteps = _l[1];
+  var _m = useState({}), diffData = _m[0], setDiffData = _m[1];
+  var _n = useState(false), showDiff = _n[0], setShowDiff = _n[1];
+  var _o = useState(false), isModifying = _o[0], setIsModifying = _o[1];
+  var chatEnd = useRef(null);
+  var inputRef = useRef(null);
+  var exportRef = useRef(null);
+  var chatAreaRef = useRef(null);
+  var abortRef = useRef(null);
+
+  useEffect(function() {
+    if (chatEnd.current && chatAreaRef.current) {
+      chatEnd.current.scrollIntoView({behavior:'smooth'});
+    }
+  }, [msgs, planData, progressSteps]);
+
+  useEffect(function() {
+    AXIOS.get('/llm/status').then(function(r) { setLlmMode(r.data.mode||'none'); }).catch(function() {});
+  }, []);
+
+  useEffect(function() {
+    var handleClickOutside = function(e) {
+      if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return function() { document.removeEventListener('mousedown', handleClickOutside); };
+  }, []);
+
+  var SECTION_MODULES = [
+    {module:'overview',    pattern:'## 一'},
+    {module:'irrigation',  pattern:'## 二'},
+    {module:'equipment',   pattern:'## 三'},
+    {module:'references',  pattern:'## 四'},
+    {module:'explanation', pattern:'## 五'},
+  ];
+
+  var parsePlanSections = function(plan) {
+    var sections = [];
+    var positions = [];
+    for (var i = 0; i < SECTION_MODULES.length; i++) {
+      var idx = plan.indexOf(SECTION_MODULES[i].pattern);
+      if (idx >= 0) {
+        positions.push({module:SECTION_MODULES[i].module, start:idx, idx:i});
+      }
+    }
+    positions.sort(function(a,b) { return a.start - b.start; });
+    for (var j = 0; j < positions.length; j++) {
+      var end = j + 1 < positions.length ? positions[j+1].start : plan.length;
+      var content = plan.substring(positions[j].start, end);
+      sections.push({module:positions[j].module, content:content});
+    }
+    return sections;
+  };
+
+  var buildSimpleDiff = function(orig, modified) {
+    var origSections = parsePlanSections(orig);
+    var modSections = parsePlanSections(modified);
+    var diff = {};
+    for (var i = 0; i < origSections.length; i++) {
+      var mod = origSections[i].module;
+      var origContent = origSections[i].content;
+      var modContent = '';
+      for (var j = 0; j < modSections.length; j++) {
+        if (modSections[j].module === mod) { modContent = modSections[j].content; break; }
+      }
+      var changed = origContent !== modContent && modContent !== '';
+      diff[mod] = {
+        original: origContent,
+        modified: modContent || origContent,
+        changed: changed,
+        change_summary: changed ? '内容已更新' : '未修改'
+      };
+    }
+    return diff;
+  };
+
+  var handleEditChange = useCallback(function(newValue) {
+    setEditedPlan(newValue);
+  }, []);
+
+  var sectionUndo = useCallback(function(modKey) {
+    var dd = diffData[modKey] || {};
+    if (!dd.original) return;
+    var sections = parsePlanSections(editedPlan);
+    var newPlan = editedPlan;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].module === modKey && sections[i].content !== dd.original) {
+        newPlan = newPlan.replace(sections[i].content, dd.original);
+        break;
+      }
+    }
+    setEditedPlan(newPlan);
+    setPlanData({content:newPlan});
+    setDiffData(function(prev) {
+      var next = Object.assign({}, prev);
+      if (next[modKey]) {
+        next[modKey] = Object.assign({}, next[modKey], {changed:false, modified: next[modKey].original, change_summary:'已撤销'});
+      }
+      return next;
+    });
+  }, [editedPlan, diffData]);
+
+  var doStreamGenerate = useCallback(async function(generateSid, generateMsg) {
+    var userMsg = {role:'assistant', content:'正在启动方案生成流程...'};
+    setMsgs(function(prev) { return prev.concat([userMsg]); });
+    setLoading(true);
+    setProgressSteps([]);
+
+    try {
+      var ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      var resp = await fetch('/chat/generate', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({session_id:generateSid, message:generateMsg}),
+        signal: ctrl.signal
+      });
+
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+
+      while (true) {
+        var result = await reader.read();
+        if (result.done) break;
+
+        buffer += decoder.decode(result.value, {stream:true});
+        var lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (line.indexOf('data: ') !== 0) continue;
+          var jsonStr = line.slice(6);
+          var parsedData = null;
+          try { parsedData = JSON.parse(jsonStr); } catch(pe) { continue; }
+
+          if (parsedData.type === 'progress') {
+            setProgressSteps(function(prev) {
+              var updated = prev.map(function(s) {
+                if (s.step === parsedData.step) return {step:parsedData.step, message:parsedData.message, status:'active'};
+                if (s.status === 'active') return {step:s.step, message:s.message, status:'done'};
+                return s;
+              });
+              var hasStep = updated.some(function(s) { return s.step === parsedData.step; });
+              if (!hasStep) updated.push({step:parsedData.step, message:parsedData.message, status:'active'});
+              return updated;
+            });
+          } else if (parsedData.type === 'complete') {
+            var newSid = parsedData.session_id;
+            if (newSid !== generateSid) {
+              setSid(newSid);
+            }
+            setProgressSteps(function(prev) {
+              return prev.map(function(s) { return {step:s.step, message:s.message, status:'done'}; });
+            });
+            setMsgs(function(prev) {
+              var filtered = prev.filter(function(m) { return m.content !== '正在启动方案生成流程...'; });
+              return filtered.concat([{role:'assistant', type:'plan_generated', content:parsedData.reply}]);
+            });
+            setPlanData({content:parsedData.reply});
+            setEditedPlan(parsedData.reply);
+            setOriginalPlan(parsedData.reply);
+            setDiffData({});
+            setShowDiff(false);
+            var qd = parsedData.data && parsedData.data.quality ? parsedData.data.quality : null;
+            setQualityData(qd);
+            var krefs = parsedData.data && parsedData.data.knowledge_refs ? parsedData.data.knowledge_refs : [];
+            console.log('[DEBUG-GEN] complete event, knowledge_refs:', krefs);
+            console.log('[DEBUG-GEN] parsedData.data keys:', parsedData.data ? Object.keys(parsedData.data) : 'no data');
+            console.log('[DEBUG-GEN] knowledge_refs type:', typeof krefs, Array.isArray(krefs));
+            console.log('[DEBUG-GEN] krefs.length:', krefs.length);
+            if (krefs.length > 0) {
+              console.log('[DEBUG-GEN] first ref:', JSON.stringify(krefs[0]));
+            } else {
+              console.log('[DEBUG-GEN] knowledge_refs is EMPTY!');
+            }
+            setKnowledgeRefs(krefs);
+          }
+        }
+      }
+    } catch(e) {
+      if (e.name !== 'AbortError') {
+        setMsgs(function(prev) {
+          var filtered = prev.filter(function(m) { return m.content !== '正在启动方案生成流程...'; });
+          var errText = '生成失败';
+          if (e.message) errText = errText + ': ' + e.message;
+          return filtered.concat([{role:'assistant', content:errText}]);
+        });
+      }
+    } finally {
+      setLoading(false);
+      abortRef.current = null;
+    }
+  }, []);
+
+  var doStreamModify = useCallback(async function(modifySid, modifyMsg, origPlan) {
+    setOriginalPlan(origPlan);
+    setPlanData({content:origPlan});
+
+    var userMsg = {role:'assistant', content:'正在启动方案修改流程...'};
+    setMsgs(function(prev) { return prev.concat([userMsg]); });
+    setLoading(true);
+    setProgressSteps([]);
+    setIsModifying(true);
+
+    try {
+      var ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      var resp = await fetch('/chat/modify', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({session_id:modifySid, message:modifyMsg, original_plan:origPlan}),
+        signal: ctrl.signal
+      });
+
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+
+      while (true) {
+        var result = await reader.read();
+        if (result.done) break;
+
+        buffer += decoder.decode(result.value, {stream:true});
+        var lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (line.indexOf('data: ') !== 0) continue;
+          var jsonStr = line.slice(6);
+          var parsedData = null;
+          try { parsedData = JSON.parse(jsonStr); } catch(pe) { continue; }
+
+          if (parsedData.type === 'progress') {
+            setProgressSteps(function(prev) {
+              var updated = prev.map(function(s) {
+                if (s.step === parsedData.step) return {step:parsedData.step, message:parsedData.message, status:'active'};
+                if (s.status === 'active') return {step:s.step, message:s.message, status:'done'};
+                return s;
+              });
+              var hasStep = updated.some(function(s) { return s.step === parsedData.step; });
+              if (!hasStep) updated.push({step:parsedData.step, message:parsedData.message, status:'active'});
+              return updated;
+            });
+          } else if (parsedData.type === 'complete') {
+            setProgressSteps(function(prev) {
+              return prev.map(function(s) { return {step:s.step, message:s.message, status:'done'}; });
+            });
+            setMsgs(function(prev) {
+              var filtered = prev.filter(function(m) { return m.content !== '正在启动方案修改流程...'; });
+              return filtered.concat([{role:'assistant', type:'plan_generated', content:parsedData.reply}]);
+            });
+            setPlanData({content:parsedData.reply});
+            setEditedPlan(parsedData.reply);
+            var dd = parsedData.data && parsedData.data.diff ? parsedData.data.diff : {};
+            setDiffData(dd);
+            setShowDiff(true);
+            setIsModifying(false);
+            var qd = parsedData.data && parsedData.data.quality ? parsedData.data.quality : null;
+            setQualityData(qd);
+            var krefs = parsedData.data && parsedData.data.knowledge_refs ? parsedData.data.knowledge_refs : [];
+            console.log('[DEBUG-MOD] modify complete event, knowledge_refs:', krefs);
+            console.log('[DEBUG-MOD] parsedData.data keys:', parsedData.data ? Object.keys(parsedData.data) : 'no data');
+            console.log('[DEBUG-MOD] krefs.length:', krefs.length);
+            setKnowledgeRefs(krefs);
+          }
+        }
+      }
+    } catch(e) {
+      if (e.name !== 'AbortError') {
+        setMsgs(function(prev) {
+          var filtered = prev.filter(function(m) { return m.content !== '正在启动方案修改流程...'; });
+          var errText = '修改失败';
+          if (e.message) errText = errText + ': ' + e.message;
+          return filtered.concat([{role:'assistant', content:errText}]);
+        });
+      }
+    } finally {
+      setLoading(false);
+      setIsModifying(false);
+      abortRef.current = null;
+    }
+  }, []);
+
+  var send = useCallback(async function(msg) {
+    var txt = msg || input.trim();
+    if (!txt || loading) return;
+
+    var oldPlan = planData;
+    var oldEdited = editedPlan;
+    var oldOriginal = originalPlan;
+
+    var userMsg = {role:'user', content:txt};
+    setMsgs(function(prev) { return prev.concat([userMsg]); });
+    setInput('');
+    setLoading(true);
+    setProgressSteps([]);
+
+    try {
+      var resp = await AXIOS.post('/chat', {session_id:sid, message:txt});
+      var newSid = resp.data.session_id;
+
+      if (newSid !== sid) {
+        setSid(newSid);
+      }
+
+      if (resp.data.type === 'generate_start') {
+        setLoading(false);
+        doStreamGenerate(newSid, txt);
+        return;
+      }
+
+      if (resp.data.type === 'modify_start') {
+        setLoading(false);
+        doStreamModify(newSid, txt, resp.data.original_plan);
+        return;
+      }
+
+      if (resp.data.type === 'clarification') {
+        setMsgs(function(prev) { return prev.concat([{role:'assistant', content:resp.data.reply}]); });
+      } else if (resp.data.type === 'plan_generated') {
+        setMsgs(function(prev) { return prev.concat([{role:'assistant', type:'plan_generated', content:resp.data.reply}]); });
+        setPlanData({content:resp.data.reply});
+        setEditedPlan(resp.data.reply);
+        setOriginalPlan(resp.data.reply);
+        setDiffData({});
+        setShowDiff(false);
+        var qd = resp.data.data && resp.data.data.quality ? resp.data.data.quality : null;
+        setQualityData(qd);
+      } else if (resp.data.type === 'weather') {
+        setMsgs(function(prev) { return prev.concat([{role:'assistant', type:'weather', content:resp.data.reply, data:resp.data.data}]); });
+      } else if (resp.data.type === 'soil') {
+        setMsgs(function(prev) { return prev.concat([{role:'assistant', type:'soil', content:resp.data.reply, data:resp.data.data}]); });
+      } else if (resp.data.type === 'knowledge' || resp.data.type === 'knowledge_browse') {
+        setMsgs(function(prev) { return prev.concat([{role:'assistant', type:resp.data.type, content:resp.data.reply}]); });
+      } else {
+        setMsgs(function(prev) { return prev.concat([{role:'assistant', content:resp.data.reply}]); });
+      }
+    } catch(e) {
+      var errText = '请求失败';
+      if (e.response) {
+        var detail = e.response.data && e.response.data.detail;
+        errText = errText + ': ' + (detail ? detail : e.message);
+      } else if (e.message) {
+        errText = errText + ': ' + e.message;
+      }
+      setMsgs(function(prev) { return prev.concat([{role:'assistant', content:errText}]); });
+    } finally {
+      setLoading(false);
+    }
+  }, [input, loading, sid, doStreamGenerate]);
+
+  var handleKeyDown = useCallback(function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  }, [send]);
+
+  var newChat = useCallback(function() {
+    var s = ''; setSid(s);
+    setMsgs([{role:'assistant', content:DEFAULT_GREETING}]);
+    setPlanData(null); setEditedPlan(''); setOriginalPlan(''); setQualityData(null); setProgressSteps([]);
+  }, []);
+
+  var switchSession = useCallback(function(s) {
+    setSid(s);
+    AXIOS.get('/conversation/' + s).then(function(r) {
+      if (r.data.history && r.data.history.length) {
+        setMsgs(r.data.history.map(function(m) {
+          var msg = {role:m.role, content:m.content};
+          var c = m.content || '';
+          if (c.indexOf('\U0001F4E1') >= 0 || c.indexOf('气象') >= 0 || c.indexOf('ET0') >= 0) { msg.type = 'weather'; }
+          else if (c.indexOf('\U0001F96C') >= 0 || c.indexOf('土壤类型') >= 0 || c.indexOf('田间持水量') >= 0) { msg.type = 'soil'; }
+          return msg;
+        }));
+        var planMsg = r.data.history.find(function(m) { return m.content && m.content.length > 500; });
+        if (planMsg) { setPlanData({content:planMsg.content}); setEditedPlan(planMsg.content); setOriginalPlan(planMsg.content); }
+      }
+    });
+  }, []);
+
+  var delSession = useCallback(function(s, e) {
+    e.stopPropagation();
+    var ns = sessions.filter(function(x) { return x !== s; }); setSessions(ns);
+    if (s === sid) newChat();
+  }, [sid, sessions, newChat]);
+
+  var saveEdit = useCallback(function() {
+    setPlanData(function(prev) { return Object.assign({}, prev, {content:editedPlan}); });
+    setMsgs(function(prev) {
+      return prev.map(function(m) {
+        return m.type === 'plan_generated' ? Object.assign({}, m, {content:editedPlan}) : m;
+      });
+    });
+  }, [editedPlan]);
+
+  // KaTeX 渲染公式（含方案编辑器区域）
+  useEffect(function() {
+    if (window.renderMathInElement) {
+      setTimeout(function() {
+        // 渲染对话气泡
+        var bubbles = document.querySelectorAll('.msg-assistant .bubble');
+        bubbles.forEach(function(bubble) {
+          window.renderMathInElement(bubble, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false},
+              {left: '\\(', right: '\\)', display: false},
+              {left: '\\[', right: '\\]', display: true}
+            ]
+          });
+        });
+        // 渲染方案编辑器内的公式（对比面板、差异视图等）
+        var planEls = document.querySelectorAll('.plan-editor, .diff-panel-content, .diff-viewer, .plan-content');
+        planEls.forEach(function(el) {
+          window.renderMathInElement(el, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false},
+              {left: '\\(', right: '\\)', display: false},
+              {left: '\\[', right: '\\]', display: true}
+            ]
+          });
+        });
+      }, 50);
+    }
+  }, [msgs, planData, editedPlan, showDiff]);
+
+  var undoEdit = useCallback(function() { setEditedPlan(originalPlan); }, [originalPlan]);
+
+  // 渲染含公式的 HTML（先保护 math 再 parse，防止 marked 转义 LaTeX 分隔符）
+  var renderMarkdownWithMath = useCallback(function(text) {
+    if (!text) return {__html: ''};
+    var placeholders = [];
+    try {
+      // 1) 保护块级公式 \[ ... \]
+      var protected = text.replace(/\\\[[\s\S]*?\\\]/g, function(match) {
+        placeholders.push(match);
+        return '{{MATH_' + (placeholders.length - 1) + '}}';
+      });
+      // 2) 保护行内公式 \( ... \)
+      protected = protected.replace(/\\\(.*?\\\)/g, function(match) {
+        placeholders.push(match);
+        return '{{MATH_' + (placeholders.length - 1) + '}}';
+      });
+      // 3) 保护 $$ ... $$
+      protected = protected.replace(/\$\$[\s\S]*?\$\$/g, function(match) {
+        placeholders.push(match);
+        return '{{MATH_' + (placeholders.length - 1) + '}}';
+      });
+      // 4) 保护 $ ... $（排除金额格式如 $200万$、$180$）
+      protected = protected.replace(/(?<!\$)\$(?!\$)([\s\S]*?)\$(?!\$)/g, function(match) {
+        var inner = match.slice(1, -1);
+        // 如果是纯数字、或数字+单位（万/千/元）→ 不是公式，跳过
+        if (/^[\d,.]+$/.test(inner)) return match;
+        if (/^[\d,.]+[万千亿元]$/.test(inner)) return match;
+        // 至少包含一个字母或数学符号才视为公式
+        if (/[a-zA-Z+\-×÷=^_{}\\\(\)\[\]]/.test(inner)) {
+          placeholders.push(match);
+          return '{{MATH_' + (placeholders.length - 1) + '}}';
+        }
+        return match;
+      });
+      // Markdown 解析
+      var html = marked.parse(protected);
+      // 恢复公式占位符
+      placeholders.forEach(function(math, i) {
+        html = html.split('{{MATH_' + i + '}}').join(math);
+      });
+      return {__html: html};
+    } catch(err) {
+      console.error('[renderMarkdownWithMath] Error:', err);
+      return {__html: '<pre>' + text.replace(/</g,'&lt;') + '</pre>'};
+    }
+  }, []);
+
+  var toggleExport = useCallback(function(e) { e.stopPropagation(); setExportOpen(function(p) { return !p; }); }, []);
+
+  var exportPlan = useCallback(function(fmt) {
+    if (!sid) return;
+    setExportOpen(false);
+    var blob = new Blob([editedPlan], {type:fmt==='txt'?'text/plain':'text/markdown'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'irrigation_' + sid.slice(0,8) + '.' + fmt;
+    a.click(); URL.revokeObjectURL(a.href);
+  }, [sid, editedPlan]);
+
+  var llmLabel = llmMode === 'local' ? '本地模型' : llmMode === 'api' ? '云端API' : '未连接';
+  var llmClass = llmMode === 'local' ? 'badge-on' : llmMode === 'api' ? 'badge-api' : 'badge-off';
+  var hasMessages = msgs.length > 0 && !(msgs.length === 1 && msgs[0].content === DEFAULT_GREETING && !planData);
+
+  return React.createElement(React.Fragment, {},
+    React.createElement('header', {},
+      React.createElement('h1', {}, '智慧灌溉方案生成系统', React.createElement('span', {}, 'v3')),
+      React.createElement('span', {className:'badge '+llmClass}, 'LLM: '+llmLabel)
+    ),
+    React.createElement('div', {className:'layout'},
+      React.createElement('aside', {className:'sidebar'},
+        React.createElement('div', {className:'sidebar-header'},
+          React.createElement('button', {className:'new-chat', onClick:newChat},
+            React.createElement('svg', {width:16,height:16,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2},
+              React.createElement('line', {x1:12,y1:5,x2:12,y2:19}), React.createElement('line', {x1:5,y1:12,x2:19,y2:12})
+            ), '新建对话'
+          )
+        ),
+        React.createElement('div', {className:'session-list'},
+          sessions.map(function(s) {
+            return React.createElement('div', {key:s, className:'session-item'+(s===sid?' active':''), onClick:function() { switchSession(s); }},
+              React.createElement('svg', {width:14,height:14,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2},
+                React.createElement('path', {d:'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z'})),
+              s.slice(0,10),
+              React.createElement('button', {className:'del-session', onClick:function(e) { delSession(s,e); }},
+                React.createElement('svg', {width:12,height:12,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2},
+                  React.createElement('line', {x1:18,y1:6,x2:6,y2:18}), React.createElement('line', {x1:6,y1:6,x2:18,y2:18}))
+              )
+            );
+          })
+        )
+      ),
+      React.createElement('main', {className:'main'},
+        React.createElement('div', {className:'main-content'},
+          React.createElement('div', {className:'chat-area' + (showEditor ? ' with-editor' : ''), ref:chatAreaRef},
+            !hasMessages ? React.createElement('div', {className:'greeting'},
+              React.createElement('h2', {}, '你好！我是智慧灌溉方案生成助手'),
+              React.createElement('p', {}, '输入项目信息，我来生成专业灌溉方案。支持气象查询、土壤分析、知识检索。'),
+              React.createElement('div', {className:'hints'},
+                ['河南中牟县2000亩小麦，预算200万','浙江衢州龙游100亩水稻','查询北京今日气象','小麦灌溉标准规范'].map(function(t) {
+                  return React.createElement('div', {key:t, className:'hint', onClick:function() { send(t); }}, t);
+                })
+              )
+            ) : null,
+            msgs.map(function(m, i) {
+              if (m.type === 'weather') {
+                return React.createElement('div', {key:i, className:'msg msg-assistant'},
+                  React.createElement('div', {className:'data-card weather-card'},
+                    React.createElement('div', {dangerouslySetInnerHTML:renderMarkdownWithMath(m.content || '')}),
+                    m.data ? React.createElement('div', {className:'data-source'},
+                      '数据来源: ', (m.data && m.data.source) || '未知'
+                    ) : null
+                  )
+                );
+              }
+              if (m.type === 'soil') {
+                return React.createElement('div', {key:i, className:'msg msg-assistant'},
+                  React.createElement('div', {className:'data-card soil-card'},
+                    React.createElement('div', {dangerouslySetInnerHTML:renderMarkdownWithMath(m.content || '')}),
+                    m.data ? React.createElement('div', {className:'data-source'},
+                      '数据来源: ', (m.data && m.data.source) || '未知'
+                    ) : null
+                  )
+                );
+              }
+              if (m.type === 'knowledge' || m.type === 'knowledge_browse') {
+                return React.createElement('div', {key:i, className:'msg msg-assistant'},
+                  React.createElement('div', {className:'data-card'},
+                    React.createElement('div', {dangerouslySetInnerHTML:renderMarkdownWithMath(m.content || '')})
+                  )
+                );
+              }
+              if (m.type === 'plan_generated') {
+                return React.createElement(React.Fragment, {key:i},
+                  React.createElement('div', {className:'msg msg-assistant'},
+                    React.createElement('div', {className:'bubble plan-bubble'},
+                      React.createElement('div', {style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
+                        React.createElement('span', {style:{fontWeight:600,color:'var(--accent)',fontSize:14}}, '灌溉方案'),
+                        planData ? React.createElement('button', {
+                          style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'4px 12px',fontSize:12,cursor:'pointer'},
+                          onClick:function() { setShowEditor(true); }
+                        }, '编辑') : null
+                      ),
+                      React.createElement('div', {className:'plan-content', style:{whiteSpace:'pre-wrap',fontSize:13,lineHeight:1.8}},
+                        React.createElement('div', {dangerouslySetInnerHTML:renderMarkdownWithMath(m.content || '')})
+                      )
+                    )
+                  ),
+                  knowledgeRefs && knowledgeRefs.length > 0 ? React.createElement('div', {className:'msg msg-assistant', style:{marginTop:'-12px'}},
+                    React.createElement('div', {className:'bubble', style:{padding:'12px 16px'}},
+                      React.createElement('button', {className:'knowledge-refs-toggle', onClick:function() { setKnowledgeRefsOpen(!knowledgeRefsOpen); }},
+                        React.createElement('span', {}, '知识依据'),
+                        React.createElement('span', {className:'badge'}, knowledgeRefs.length + '条'),
+                        React.createElement('span', {style:{marginLeft:'auto',fontSize:'12px'}}, knowledgeRefsOpen ? '\u25B2' : '\u25BC')
+                      ),
+                      knowledgeRefsOpen
+                        ? React.createElement('ul', {className:'knowledge-refs-list', style:{marginTop:8}},
+                            knowledgeRefs.map(function(r, j) {
+                              var effectiveTag = r.tag || r.channel || '';
+                              var tagLabel = ''; var tagClass = '';
+                              if (effectiveTag === 'template') { tagLabel = '结构模板'; tagClass = 'template'; }
+                              else if (effectiveTag === 'standard') { tagLabel = '合规标准'; tagClass = 'standard'; }
+                              else { tagLabel = '领域知识'; tagClass = 'domain_knowledge'; }
+                              var source = r.source || r.chunk_id || '未知来源';
+                              return React.createElement('li', {key:j},
+                                React.createElement('div', {className:'ref-source'}, source, React.createElement('span', {className:'ref-tag '+tagClass}, tagLabel)),
+                                React.createElement('div', {className:'ref-content'}, r.content)
+                              );
+                            })
+                          )
+                        : null
+                    )
+                  ) : null,
+                  qualityData ? React.createElement('div', {className:'msg msg-assistant', style:{marginTop:'-12px'}},
+                    React.createElement('div', {className:'bubble', style:{padding:'12px 16px'}},
+                      React.createElement('h3', {style:{fontSize:14,fontWeight:600,color:'var(--accent)',marginBottom:12}}, '方案质量评估'),
+                      React.createElement('div', {style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
+                        React.createElement('div', {className:'score-circle '+((qualityData.overall_score>=90?'excellent':qualityData.overall_score>=75?'good':qualityData.overall_score>=60?'pass':'improve'))},
+                          React.createElement('span', {}, qualityData.overall_score),
+                          React.createElement('span', {className:'grade'}, qualityData.grade)
+                        ),
+                        React.createElement('div', {style:{flex:1}},
+                          ['合规性','合理性','完整性'].map(function(label) {
+                            var score = 0;
+                            if (label === '合规性' && qualityData.compliance) score = qualityData.compliance.score;
+                            if (label === '合理性' && qualityData.rationality) score = qualityData.rationality.score;
+                            if (label === '完整性' && qualityData.sufficiency) score = qualityData.sufficiency.score;
+                            return React.createElement('div', {key:label, style:{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12}},
+                              React.createElement('span', {style:{color:'var(--text2)'}}, label),
+                              React.createElement('span', {style:{fontWeight:600}}, score + '分')
+                            );
+                          })
+                        )
+                      ),
+                      (qualityData.compliance || qualityData.rationality || qualityData.sufficiency) ?
+                        React.createElement('div', {style:{marginBottom:12}},
+                          ['compliance','rationality','sufficiency'].map(function(key) {
+                            var dim = qualityData[key];
+                            if (!dim) return null;
+                            var label = key === 'compliance' ? '\u2713 合规性' : key === 'rationality' ? '\u2713 合理性' : '\u2713 完整性';
+                            var passed = dim.passed || [];
+                            var failed = dim.failed || [];
+                            return React.createElement('div', {key:key, style:{marginBottom:10}},
+                              React.createElement('div', {style:{fontWeight:600,fontSize:12,marginBottom:4}}, label + ' (' + dim.score + '分)'),
+                              passed.length > 0 ? React.createElement('div', {style:{color:'var(--green)',fontSize:12,paddingLeft:12}},
+                                passed.map(function(p, pi) { return React.createElement('div', {key:pi}, '\u2714 ' + p); })
+                              ) : null,
+                              failed.length > 0 ? React.createElement('div', {style:{color:'var(--red)',fontSize:12,paddingLeft:12,marginTop:4}},
+                                failed.map(function(f, fi) { return React.createElement('div', {key:fi}, '\u2718 ' + f); })
+                              ) : null
+                            );
+                          })
+                        ) : null,
+                      qualityData.suggestions && qualityData.suggestions.length > 0
+                        ? React.createElement('div', {style:{fontSize:12,color:'var(--text2)'}},
+                            React.createElement('div', {style:{fontWeight:600,marginBottom:4}}, '优化建议'),
+                            React.createElement('ul', {style:{paddingLeft:16,margin:0}},
+                              qualityData.suggestions.map(function(s, j) { return React.createElement('li', {key:j}, s); })
+                            )
+                          )
+                        : null
+                    )
+                  ) : null
+                );
+              }
+              return React.createElement('div', {key:i, className:'msg msg-'+(m.role==='user'?'user':'assistant')},
+                React.createElement('div', {className:'bubble', dangerouslySetInnerHTML:renderMarkdownWithMath(m.content || '')})
+              );
+            }),
+            progressSteps.length > 0 ? React.createElement('div', {className:'msg msg-assistant'},
+              React.createElement('div', {className:'bubble'},
+                React.createElement('div', {style:{fontWeight:600,marginBottom:10,fontSize:14}}, '方案生成进度'),
+                React.createElement('div', {className:'progress-container'},
+                  React.createElement('ul', {className:'progress-steps'},
+                    progressSteps.map(function(s) {
+                      return React.createElement('li', {key:s.step, className:s.status==='active'?'active':s.status==='done'?'done':''}, s.message);
+                    })
+                  )
+                )
+              )
+            ) : null,
+            loading&&progressSteps.length===0 ? React.createElement('div', {className:'msg msg-assistant'},
+              React.createElement('div', {className:'bubble'},
+                React.createElement('div', {className:'typing'},
+                  React.createElement('span'), React.createElement('span'), React.createElement('span')
+                )
+              )
+            ) : null,
+            React.createElement('div', {ref:chatEnd})
+          ),
+          showEditor ? React.createElement('div', {className:'editor-panel'},
+            React.createElement('div', {className:'editor-header'},
+              React.createElement('h3', {style:{margin:0,fontSize:14,color:'var(--accent)'}}, '编辑方案'),
+              React.createElement('button', {style:{background:'none',border:'none',fontSize:16,cursor:'pointer',color:'var(--text3)'}, onClick:function() { setShowEditor(false); }}, '✕')
+            ),
+            React.createElement('div', {className:'plan-editor'},
+              React.createElement('textarea', {value:editedPlan, onChange:function(e) { handleEditChange(e.target.value); }}),
+              React.createElement('div', {className:'editor-toolbar'},
+                React.createElement('button', {className:'btn-save', onClick:saveEdit}, '保存'),
+                React.createElement('button', {className:'btn-undo', onClick:undoEdit}, '撤回'),
+                React.createElement('button', {className:'btn-undo', onClick:function() { setShowDiff(!showDiff); }}, showDiff ? '隐藏对比' : '显示对比'),
+                React.createElement('div', {ref:exportRef, className:'btn-export', style:{position:'relative'}},
+                  React.createElement('button', {className:'btn-export', onClick:toggleExport}, '下载'),
+                  React.createElement('div', {className:'export-drop'+(exportOpen?' open':'')},
+                    React.createElement('button', {onClick:function() { exportPlan('md'); }}, 'Markdown (.md)'),
+                    React.createElement('button', {onClick:function() { exportPlan('txt'); }}, '纯文本 (.txt)')
+                  )
+                )
+              ),
+              showDiff ? React.createElement('div', {style:{flex:1,overflowY:'auto',padding:'12px 20px',background:'var(--bg)',borderTop:'1px solid var(--border)'}},
+                React.createElement('div', {style:{fontSize:12,fontWeight:600,marginBottom:8}}, '修改对比（红色=修改前，绿色=修改后）'),
+                (function() {
+                  var oldLines = originalPlan.split('\n');
+                  var newLines = editedPlan.split('\n');
+                  var result = [];
+                  // 逐行比较，相同只显示一次，不同显示红+绿
+                  var maxLen = Math.max(oldLines.length, newLines.length);
+                  for (var i = 0; i < maxLen; i++) {
+                    var ol = (oldLines[i] || '').trim();
+                    var nl = (newLines[i] || '').trim();
+                    if (ol && ol === nl) {
+                      result.push(React.createElement('div', {key:i, className:'diff-line diff-same-line'}, ol));
+                    } else if (ol && nl && ol !== nl) {
+                      result.push(React.createElement('div', {key:'r'+i, className:'diff-line diff-remove-line'}, ol));
+                      result.push(React.createElement('div', {key:'a'+i, className:'diff-line diff-add-line'}, nl));
+                    } else if (nl && !ol) {
+                      result.push(React.createElement('div', {key:'a'+i, className:'diff-line diff-add-line'}, nl));
+                    } else if (ol && !nl) {
+                      result.push(React.createElement('div', {key:'r'+i, className:'diff-line diff-remove-line'}, ol));
+                    }
+                  }
+                  return result.length > 0 ? result : React.createElement('div', {style:{padding:'20px',textAlign:'center',color:'var(--text3)',fontSize:13}}, '未检测到变更');
+                })()
+              ) : null
+            )
+          ) : null
+        ),
+        React.createElement('div', {className:'input-area'},
+          React.createElement('div', {className:'input-wrap'},
+            React.createElement('textarea', {
+              ref:inputRef, value:input,
+              onChange:function(e) { setInput(e.target.value); },
+              onKeyDown:handleKeyDown,
+              placeholder:'输入项目信息或问题... (Enter发送，Shift+Enter换行)',
+              rows:1, disabled:loading
+            }),
+            React.createElement('button', {className:'send-btn', onClick:function() { send(); }, disabled:loading||!input.trim()}, loading?'处理中...':'发送')
+          )
+        )
+      )
+    )
+  );
+}
+ReactDOM.render(React.createElement(App), document.getElementById('root'));
+});
+</script>
+</body>
+</html>
